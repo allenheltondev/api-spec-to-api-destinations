@@ -1,0 +1,22 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: SAM template for creating an EventBridge API Destination with an API Key.
+
+Parameters:
+  MomentoAuthToken:
+    Type: String    
+
+Mappings:
+  RegionToEndPoint:
+    us-east-1:
+      URL: "https://api.cache.cell-us-east-1-1.prod.a.momentohq.com"
+    us-west-2:
+      URL: "https://api.cache.cell-4-us-west-2-1.prod.a.momentohq.com"
+    ap-south-1:
+      URL: "https://api.cache.cell-1-ap-south-1-1.prod.a.momentohq.com"
+    ap-northeast-1:
+      URL: "https://api.cache.cell-ap-northeast-1-1.prod.a.momentohq.com"
+    eu-west-1:
+      URL: "https://api.cache.cell-1-eu-west-1-1.prod.a.momentohq.com"
+
+Resources:

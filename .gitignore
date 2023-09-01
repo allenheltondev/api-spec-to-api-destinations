@@ -1,0 +1,4 @@
+.aws-sam/
+samconfig.toml
+generated.yaml
+node_modules/

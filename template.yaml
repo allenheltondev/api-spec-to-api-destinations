@@ -1,6 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Transform: AWS::Serverless-2016-10-31
-Description: SAM template for creating an EventBridge API Destination with an API Key.
+Description: >
+  Call the Momento API directly from EventBridge events! Set and delete cache items or publish to a topic with a simple PutEvent call. 
+  Available in us-east-1, us-west-2, ap-south-1, ap-northeast-1, and eu-west-1 only!
 Parameters:
   MomentoAuthToken:
     Type: String
@@ -46,8 +47,10 @@ Resources:
                   - Fn::GetAtt:
                       - MomentoApiTopicsPost
                       - Arn
+  
   FailedDeliveryDLQ:
     Type: AWS::SQS::Queue
+  
   ApiConnection:
     Type: AWS::Events::Connection
     Properties:
@@ -57,6 +60,7 @@ Resources:
           ApiKeyName: Authorization
           ApiKeyValue:
             Fn::Sub: ${MomentoAuthToken}
+  
   MomentoApiCachePut:
     Type: AWS::Events::ApiDestination
     Properties:
@@ -74,6 +78,7 @@ Resources:
                 - Ref: AWS::Region
                 - URL
       InvocationRateLimitPerSecond: 300
+  
   MomentoApiCachePutRule:
     Type: AWS::Events::Rule
     Properties:
@@ -99,6 +104,16 @@ Resources:
           HttpParameters:
             PathParameterValues:
               - $.detail.cacheName
+            QueryStringParameters:
+              key: $.detail.key
+              key_base64: $.detail.key_base64
+              ttl_seconds: $.detail.ttl
+          DeadLetterConfig:
+            Arn:
+              Fn::GetAtt:
+                - FailedDeliveryDLQ
+                - Arn
+
   MomentoApiCacheDelete:
     Type: AWS::Events::ApiDestination
     Properties:
@@ -116,6 +131,7 @@ Resources:
                 - Ref: AWS::Region
                 - URL
       InvocationRateLimitPerSecond: 300
+  
   MomentoApiCacheDeleteRule:
     Type: AWS::Events::Rule
     Properties:
@@ -137,6 +153,15 @@ Resources:
           HttpParameters:
             PathParameterValues:
               - $.detail.cacheName
+            QueryStringParameters:
+              key: $.detail.key
+              key_base64: $.detail.key_base64
+          DeadLetterConfig:
+            Arn:
+              Fn::GetAtt:
+                - FailedDeliveryDLQ
+                - Arn
+  
   MomentoApiTopicsPost:
     Type: AWS::Events::ApiDestination
     Properties:
@@ -154,6 +179,7 @@ Resources:
                 - Ref: AWS::Region
                 - URL
       InvocationRateLimitPerSecond: 300
+  
   MomentoApiTopicsPostRule:
     Type: AWS::Events::Rule
     Properties:
@@ -180,3 +206,19 @@ Resources:
             PathParameterValues:
               - $.detail.cacheName
               - $.detail.topicName
+          DeadLetterConfig:
+            Arn:
+              Fn::GetAtt:
+                - FailedDeliveryDLQ
+                - Arn
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Authentication
+        Parameters:
+          - MomentoAuthToken
+    ParameterLabels:
+      MomentoAuthToken:
+        default: Momento Auth Token from https://console.gomomento.com        

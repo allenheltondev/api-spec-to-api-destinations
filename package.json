@@ -2,13 +2,13 @@
   "name": "api-spec-to-api-destinations",
   "version": "1.0.0",
   "description": "Converts an open api specification to a set of AWS EventBridge API destinations and triggers",
-  "main": "compile.js",
+  "main": "src/index.js",
   "directories": {
     "lib": "lib"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "compile": "node ./compile.js"
+    "test": "jest",
+    "prepare": "ncc build src/index.js -o dist --source-map --license licenses.txt"
   },
   "repository": {
     "type": "git",
@@ -21,7 +21,14 @@
   },
   "homepage": "https://github.com/allenheltondev/api-spec-to-api-destinations#readme",
   "dependencies": {
+    "@actions/core": "^1.10.0",
+    "@actions/github": "^5.1.1",
     "fs": "^0.0.1-security",
     "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.38.0",
+    "jest": "^29.6.4",
+    "path": "^0.12.7"
   }
 }

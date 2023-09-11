@@ -4,7 +4,11 @@ Description: SAM template for creating an EventBridge API Destination with an AP
 
 Parameters:
   MomentoAuthToken:
-    Type: String    
+    Type: String
+    NoEcho: true
+  EventBusName:
+    Type: String
+    Default: default 
 
 Mappings:
   RegionToEndPoint:
@@ -20,3 +24,20 @@ Mappings:
       URL: "https://api.cache.cell-1-eu-west-1-1.prod.a.momentohq.com"
 
 Resources:
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Authentication
+        Parameters:
+          - MomentoAuthToken
+      - Label: 
+          default: Triggers
+        Parameters:
+          - EventBusName
+    ParameterLabels:
+      MomentoAuthToken:
+        default: Momento auth token from https://console.gomomento.com
+      EventBusName:
+        default: Name of event bus to use in EventBridge for triggering API calls (optional)

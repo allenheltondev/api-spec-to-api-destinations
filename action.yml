@@ -1,0 +1,24 @@
+name: OpenAPI to EventBridge API Destinations
+description: Parse an OpenAPI spec to generate an AWS CloudFormation template that contains EventBridge API Destinations and triggers
+runs:
+  using: 'node16'
+  main: 'dist/index.js'
+branding:
+  icon: link
+  color: red
+inputs:
+  specPath:
+    description: Path to the OpenAPI spec
+    required: true
+  blueprint:
+    description: Path to template file you'd like to use as a basis. Useful if you have Auth params to provide
+    required: false
+  httpMethods:
+    description: Comma separated list of HTTP methods to convert to API Destinations
+    required: false
+  resourcePrefix:
+    description: Prefix to use for all generated resources
+    required: false
+  outputFilename:
+    description: Output filename 
+    required: false

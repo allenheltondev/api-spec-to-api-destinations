@@ -6849,7 +6849,8 @@ function getResourceName(prefix, path, httpMethod){
 module.exports = {
   replaceBracketsWithAsterisk,
   getResourceName
-};
+}
+
 
 /***/ }),
 
@@ -6896,7 +6897,239 @@ function getDefinedQueryParams(definition, queryParams) {
 module.exports = {
   loadQueryParams,
   getDefinedQueryParams
-};
+}
+
+
+/***/ }),
+
+/***/ 2398:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+const fs = __nccwpck_require__(7147);
+const core = __nccwpck_require__(2186);
+const yaml = __nccwpck_require__(1917);
+const { replaceBracketsWithAsterisk, getResourceName } = __nccwpck_require__(4666);
+const {loadQueryParams, getDefinedQueryParams} = __nccwpck_require__(1570);
+
+function buildTemplateFromSpec(apiSpec, supportedMethods, resourcePrefix, blueprint) {
+  const queryParams = loadQueryParams(apiSpec);
+  const apiDestinations = [];
+  let resources = getStaticResources();
+  for (const [key, value] of Object.entries(apiSpec.paths)) {
+    const path = replaceBracketsWithAsterisk(key);
+    const pathQueryParams = getDefinedQueryParams(value, queryParams);
+
+    for (const [httpMethod, endpointDefinition] of Object.entries(value)) {
+      if (supportedMethods.has(httpMethod.toUpperCase())) {
+        const resourceName = getResourceName(resourcePrefix, path, httpMethod);
+        if(!endpointDefinition.operationId){
+          core.warning(`Resource ${resourceName} does not have an 'operationId' defined. Skipping creation.`);
+          continue;
+        }
+
+        core.info(`Creating API destination ${resourceName} with trigger '${endpointDefinition.operationId}'`);
+        apiDestinations.push(resourceName);
+
+        const allQueryParams = {
+          ...pathQueryParams,
+          ...getDefinedQueryParams(endpointDefinition, queryParams)
+        };
+        const endpointResources = buildResources(resourceName, key, path, httpMethod, endpointDefinition, allQueryParams);
+
+        resources = { ...resources, ...endpointResources };
+      }
+    }
+  }
+
+  addApiDestinationsToRole(resources, apiDestinations);
+  let template;
+  if (blueprint) {
+    template = yaml.load(fs.readFileSync(blueprint, 'utf8'));
+  } else {
+    template = getDefaultTemplate();
+  }
+
+  template.Resources = { ...template.Resources, ...resources };
+
+  return template;
+}
+
+function getStaticResources() {
+  return {
+    ApiDestinationsTargetRole: {
+      Type: "AWS::IAM::Role",
+      Properties: {
+        AssumeRolePolicyDocument: {
+          Version: "2012-10-17",
+          Statement: [
+            {
+              Effect: "Allow",
+              Principal: {
+                Service: "events.amazonaws.com"
+              },
+              Action: "sts:AssumeRole"
+            }
+          ]
+        },
+        Path: "/service-role/",
+        Policies: [
+          {
+            PolicyName: "destinationinvoke",
+            PolicyDocument: {
+              Version: "2012-10-17",
+              Statement: [
+                {
+                  Effect: "Allow",
+                  Action: [
+                    "events:InvokeApiDestination"
+                  ],
+                  Resource: []
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    FailedDeliveryDLQ: {
+      "Type": "AWS::SQS::Queue"
+    },
+    ApiConnection: {
+      Type: "AWS::Events::Connection",
+      Properties: {
+        AuthorizationType: "API_KEY",
+        AuthParameters: {
+          ApiKeyAuthParameters: {
+            ApiKeyName: "Authorization",
+            ApiKeyValue: {
+              "Fn::Sub": "${MomentoAuthToken}"
+            }
+          }
+        }
+      }
+    }
+  };
+}
+
+function addApiDestinationsToRole(resources, destinations) {
+  resources.ApiDestinationsTargetRole.Properties.Policies[0].PolicyDocument.Statement[0].Resource = destinations.map(d => {
+    return {
+      "Fn::GetAtt": [d, "Arn"]
+    };
+  })
+}
+
+function buildInputTransformer(definition) {
+  if (definition.requestBody?.content) {
+    return {
+      InputTransformer: {
+        InputPathsMap: {
+          message: "$.detail.message"
+        },
+        InputTemplate: "\"<message>\""
+      }
+    };
+  }
+}
+
+function getDefaultTemplate() {
+  return {
+    AWSTemplateFormatVersion: '2010-09-09',
+    Description: 'CloudFormation template that deploys EventBridge rules and API destinations for my API',
+    Resources: {}
+  };
+}
+
+function extractParams(path) {
+  const regex = /{([^}]+)}/g;
+  const params = [];
+  let match;
+
+  while ((match = regex.exec(path)) !== null) {
+    params.push(match[1]);
+  }
+
+  return params;
+}
+
+function buildResources(resourceName, path, friendlyPath, httpMethod, definition, queryParams) {
+  const params = extractParams(path);
+  const inputTransformer = buildInputTransformer(definition);
+  const resources = {
+    [resourceName]: {
+      Type: "AWS::Events::ApiDestination",
+      Properties: {
+        ConnectionArn: {
+          "Fn::GetAtt": ["ApiConnection", "Arn"]
+        },
+        HttpMethod: httpMethod.toUpperCase(),
+        InvocationEndpoint: {
+          "Fn::Sub": [
+            `\${RegionEndpoint}${friendlyPath}`,
+            {
+              RegionEndpoint: {
+                "Fn::FindInMap": [
+                  "RegionToEndPoint",
+                  { "Ref": "AWS::Region" },
+                  "URL"
+                ]
+              }
+            }
+          ]
+        },
+        InvocationRateLimitPerSecond: 300
+      }
+    },
+    [`${resourceName}Rule`]: {
+      Type: "AWS::Events::Rule",
+      Properties: {
+        EventBusName: { Ref: 'EventBusName' },
+        EventPattern: {
+          "detail-type": [definition.operationId]
+        },
+        State: "ENABLED",
+        Targets: [
+          {
+            Id: `${definition.operationId}-rule`,
+            Arn: {
+              "Fn::GetAtt": [resourceName, "Arn"]
+            },
+            RoleArn: {
+              "Fn::GetAtt": ["ApiDestinationsTargetRole", "Arn"]
+            },
+            ...inputTransformer && inputTransformer,
+            ...params.length && {
+              HttpParameters: {
+                PathParameterValues: params.map(p => `$.detail.${p}`)
+
+              }
+            },
+            DeadLetterConfig: {
+              Arn: {
+                'Fn::GetAtt': ["FailedDeliveryDLQ", "Arn"]
+              }
+            }
+          }
+        ],
+      }
+    }
+  };
+
+  if (Object.keys(queryParams).length) {
+    if (!resources[`${resourceName}Rule`].Properties.Targets[0].HttpParameters) {
+      resources[`${resourceName}Rule`].Properties.Targets[0].HttpParameters = {};
+    }
+
+    resources[`${resourceName}Rule`].Properties.Targets[0].HttpParameters.QueryStringParameters = queryParams;
+  }
+
+  return resources;
+}
+
+module.exports = {
+  buildTemplateFromSpec
+}
+
 
 /***/ }),
 
@@ -7032,8 +7265,7 @@ var __webpack_exports__ = {};
 const core = __nccwpck_require__(2186);
 const yaml = __nccwpck_require__(1917);
 const fs = __nccwpck_require__(7147);
-const { replaceBracketsWithAsterisk, getResourceName } = __nccwpck_require__(4666);
-const {loadQueryParams, getDefinedQueryParams} = __nccwpck_require__(1570);
+const { buildTemplateFromSpec} = __nccwpck_require__(2398);
 
 const specPath = process.env.INPUT_SPECPATH;
 const blueprint = process.env.INPUT_BLUEPRINT;
@@ -7047,46 +7279,10 @@ const supportedMethods = new Set(process.env.INPUT_HTTPMETHODS.split(',').map(me
 
 try {
   const doc = yaml.load(fs.readFileSync(specPath, 'utf8'));
-  const queryParams = loadQueryParams(doc);
-  const apiDestinations = [];
-  let resources = getStaticResources();
+  const template = buildTemplateFromSpec(doc, supportedMethods, resourcePrefix, blueprint);
 
-  for (const [key, value] of Object.entries(doc.paths)) {
-    const path = replaceBracketsWithAsterisk(key);
-    const pathQueryParams = getDefinedQueryParams(value, queryParams);
-
-    for (const [httpMethod, endpointDefinition] of Object.entries(value)) {
-      if (supportedMethods.has(httpMethod.toUpperCase())) {
-        const resourceName = getResourceName(resourcePrefix, path, httpMethod);
-        if(!endpointDefinition.operationId){
-          core.warning(`Resource ${resourceName} does not have an 'operationId' defined. Skipping creation.`);
-          continue;
-        }
-
-        core.info(`Creating API destination ${resourceName} with trigger '${endpointDefinition.operationId}'`);
-        apiDestinations.push(resourceName);
-
-        const allQueryParams = {
-          ...pathQueryParams,
-          ...getDefinedQueryParams(endpointDefinition, queryParams)
-        };
-        const endpointResources = buildResources(resourceName, key, path, httpMethod, endpointDefinition, allQueryParams);
-
-        resources = { ...resources, ...endpointResources };
-      }
-    }
-  }
-
-  addApiDestinationsToRole(resources, apiDestinations);
-  let template;
-  if (blueprint) {
-    template = yaml.load(fs.readFileSync(blueprint, 'utf8'));
-  } else {
-    template = getDefaultTemplate();
-  }
-
-  template.Resources = { ...template.Resources, ...resources };
   fs.writeFileSync(outputFilename, yaml.dump(template));
+
   core.info('Successfully transformed API spec');
   core.setOutput('template-path', outputFilename);
 } catch (e) {
@@ -7094,178 +7290,6 @@ try {
   core.setFailed('Something went wrong processing your API spec');
 }
 
-function buildResources(resourceName, path, friendlyPath, httpMethod, definition, queryParams) {
-  const params = extractParams(path);
-  const inputTransformer = buildInputTransformer(definition);
-  const resources = {
-    [resourceName]: {
-      Type: "AWS::Events::ApiDestination",
-      Properties: {
-        ConnectionArn: {
-          "Fn::GetAtt": ["ApiConnection", "Arn"]
-        },
-        HttpMethod: httpMethod.toUpperCase(),
-        InvocationEndpoint: {
-          "Fn::Sub": [
-            `\${RegionEndpoint}${friendlyPath}`,
-            {
-              RegionEndpoint: {
-                "Fn::FindInMap": [
-                  "RegionToEndPoint",
-                  { "Ref": "AWS::Region" },
-                  "URL"
-                ]
-              }
-            }
-          ]
-        },
-        InvocationRateLimitPerSecond: 300
-      }
-    },
-    [`${resourceName}Rule`]: {
-      Type: "AWS::Events::Rule",
-      Properties: {
-        EventBusName: { Ref: 'EventBusName' },
-        EventPattern: {
-          "detail-type": [definition.operationId]
-        },
-        State: "ENABLED",
-        Targets: [
-          {
-            Id: `${definition.operationId}-rule`,
-            Arn: {
-              "Fn::GetAtt": [resourceName, "Arn"]
-            },
-            RoleArn: {
-              "Fn::GetAtt": ["ApiDestinationsTargetRole", "Arn"]
-            },
-            ...inputTransformer && inputTransformer,
-            ...params.length && {
-              HttpParameters: {
-                PathParameterValues: params.map(p => `$.detail.${p}`)
-
-              }
-            },
-            DeadLetterConfig: {
-              Arn: {
-                'Fn::GetAtt': ["FailedDeliveryDLQ", "Arn"]
-              }
-            }
-          }
-        ],
-      }
-    }
-  };
-
-  if (Object.keys(queryParams).length) {
-    if (!resources[`${resourceName}Rule`].Properties.Targets[0].HttpParameters) {
-      resources[`${resourceName}Rule`].Properties.Targets[0].HttpParameters = {};
-    }
-
-    resources[`${resourceName}Rule`].Properties.Targets[0].HttpParameters.QueryStringParameters = queryParams;
-  }
-
-  return resources;
-}
-
-function extractParams(path) {
-  const regex = /{([^}]+)}/g;
-  const params = [];
-  let match;
-
-  while ((match = regex.exec(path)) !== null) {
-    params.push(match[1]);
-  }
-
-  return params;
-}
-
-function getStaticResources() {
-  return {
-    ApiDestinationsTargetRole: {
-      Type: "AWS::IAM::Role",
-      Properties: {
-        AssumeRolePolicyDocument: {
-          Version: "2012-10-17",
-          Statement: [
-            {
-              Effect: "Allow",
-              Principal: {
-                Service: "events.amazonaws.com"
-              },
-              Action: "sts:AssumeRole"
-            }
-          ]
-        },
-        Path: "/service-role/",
-        Policies: [
-          {
-            PolicyName: "destinationinvoke",
-            PolicyDocument: {
-              Version: "2012-10-17",
-              Statement: [
-                {
-                  Effect: "Allow",
-                  Action: [
-                    "events:InvokeApiDestination"
-                  ],
-                  Resource: []
-                }
-              ]
-            }
-          }
-        ]
-      }
-    },
-    FailedDeliveryDLQ: {
-      "Type": "AWS::SQS::Queue"
-    },
-    ApiConnection: {
-      Type: "AWS::Events::Connection",
-      Properties: {
-        AuthorizationType: "API_KEY",
-        AuthParameters: {
-          ApiKeyAuthParameters: {
-            ApiKeyName: "Authorization",
-            ApiKeyValue: {
-              "Fn::Sub": "${MomentoAuthToken}"
-            }
-          }
-        }
-      }
-    }
-  }
-
-}
-
-function addApiDestinationsToRole(resources, destinations) {
-  resources.ApiDestinationsTargetRole.Properties.Policies[0].PolicyDocument.Statement[0].Resource = destinations.map(d => {
-    return {
-      "Fn::GetAtt": [d, "Arn"]
-    };
-  })
-}
-
-function buildInputTransformer(definition) {
-  if (definition.requestBody?.content) {
-    return {
-      InputTransformer: {
-        InputPathsMap: {
-          message: "$.detail.message"
-        },
-        InputTemplate: "\"<message>\""
-      }
-    };
-  }
-};
-
-function getDefaultTemplate() {
-  return {
-    AWSTemplateFormatVersion: '2010-09-09',
-    Description: 'CloudFormation template that deploys EventBridge rules and API destinations for my API',
-    Resources: {}
-  };
-}
 })();
 
 module.exports = __webpack_exports__;

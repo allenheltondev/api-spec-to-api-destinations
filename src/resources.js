@@ -1,5 +1,6 @@
 const fs = require('fs');
 const core = require('@actions/core');
+const yaml = require('js-yaml');
 const { replaceBracketsWithAsterisk, getResourceName } = require('./formatters');
 const {loadQueryParams, getDefinedQueryParams} = require('./parameters');
 
@@ -220,4 +221,4 @@ function buildResources(resourceName, path, friendlyPath, httpMethod, definition
 
 module.exports = {
   buildTemplateFromSpec
-};
+}

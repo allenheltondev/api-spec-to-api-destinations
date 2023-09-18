@@ -1,13 +1,9 @@
 const { buildTemplateFromSpec } = require('../src/resources');
-const core = require('@actions/core');
-const yaml = require('js-yaml');
-const fs = require('fs');
-const path = require('path');
-
 var spec;
+
 describe('buildTemplateFromSpec', () => {
   beforeEach(() => {
-    spec = yaml.load(fs.readFileSync(`${path.resolve(__dirname)}\\lib\\openapi.yaml`, 'utf8'));    
+    spec = getExampleSpec();
   });
 
   afterEach(() => {
@@ -25,7 +21,7 @@ describe('buildTemplateFromSpec', () => {
     expect(result.Resources).not.toHaveProperty('TESTCacheGetRule');
     expect(result.Resources).not.toHaveProperty('TESTTopicsPost');
     expect(result.Resources).not.toHaveProperty('TESTTopicsPostRule');
-    
+
     const role = result.Resources.ApiDestinationsTargetRole;
     expect(role.Properties.Policies[0].PolicyDocument.Statement[0].Resource.length).toEqual(1);
     expect(role.Properties.Policies[0].PolicyDocument.Statement[0].Resource[0]['Fn::GetAtt'][0]).toEqual('TESTCacheDelete');
@@ -49,7 +45,7 @@ describe('buildTemplateFromSpec', () => {
     expect(role.Properties.Policies[0].PolicyDocument.Statement[0].Resource[1]['Fn::GetAtt'][0]).toEqual('TEST2TopicsPost');
   });
 
-  it('should not create resources if operationId is missing', () => {   
+  it('should not create resources if operationId is missing', () => {
 
     const supportedMethods = new Set(['POST', 'PUT']);
     delete spec.paths['/topics/{cacheName}/{topicName}'].post.operationId;
@@ -88,7 +84,218 @@ describe('buildTemplateFromSpec', () => {
     expect(target.HttpParameters).toHaveProperty('PathParameterValues');
     expect(target.HttpParameters.PathParameterValues).toHaveLength(1);
     expect(target.HttpParameters.PathParameterValues[0]).toEqual('$.detail.cacheName');
-    
+
   });
 });
 
+const getExampleSpec = () => {
+  return {
+    "openapi": "3.0.0",
+    "info": {
+      "title": "Test API"
+    },
+    "security": [
+      {
+        "apiTokenQuery": []
+      },
+      {
+        "apiTokenHeader": []
+      }
+    ],
+    "paths": {
+      "/cache/{cacheName}": {
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/cacheName"
+          },
+          {
+            "$ref": "#/components/parameters/key"
+          },
+          {
+            "$ref": "#/components/parameters/key_base64"
+          }
+        ],
+        "get": {
+          "operationId": "cacheGet",
+          "summary": "Get cache item value",
+          "responses": {
+            "200": {
+              "description": "The value of the cache item in raw format",
+              "content": {
+                "application/octet-stream": {
+                  "schema": {
+                    "type": "string",
+                    "example": "Hello World!"
+                  }
+                }
+              }
+            },
+            "400": {
+              "$ref": "#/components/responses/BadRequest"
+            }
+          }
+        },
+        "put": {
+          "parameters": [
+            {
+              "name": "ttl_seconds",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 86400
+              }
+            }
+          ],
+          "operationId": "cacheSet",
+          "summary": "Set cache item value",
+          "tags": [
+            "Cache"
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "responses": {
+            "204": {
+              "$ref": "#/components/responses/NoContent"
+            },
+            "400": {
+              "$ref": "#/components/responses/BadRequest"
+            }
+          }
+        },
+        "delete": {
+          "operationId": "cacheDelete",
+          "summary": "Delete cache item",
+          "responses": {
+            "204": {
+              "$ref": "#/components/responses/NoContent"
+            },
+            "400": {
+              "$ref": "#/components/responses/BadRequest"
+            }
+          }
+        }
+      },
+      "/topics/{cacheName}/{topicName}": {
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/cacheName"
+          },
+          {
+            "$ref": "#/components/parameters/topicName"
+          }
+        ],
+        "post": {
+          "operationId": "topicPublish",
+          "summary": "Publish data to a topic",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "responses": {
+            "204": {
+              "$ref": "#/components/responses/NoContent"
+            },
+            "400": {
+              "$ref": "#/components/responses/BadRequest"
+            }
+          }
+        }
+      }
+    },
+    "components": {
+      "parameters": {
+        "cacheName": {
+          "name": "cacheName",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "example": "myfirstcache"
+          }
+        },
+        "key": {
+          "name": "key",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "key_base64": {
+          "name": "key_base64",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "topicName": {
+          "name": "topicName",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "example": "myfirstcache"
+          }
+        }
+      },
+      "responses": {
+        "NoContent": {
+          "description": "The operation was successful and no information was returned"
+        },
+        "BadRequest": {
+          "description": "Data provided by the caller is invalid",
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "status": {
+                    "type": "integer"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "securitySchemes": {
+        "apiTokenQuery": {
+          "type": "apiKey",
+          "in": "query",
+          "name": "token"
+        },
+        "apiTokenHeader": {
+          "type": "apiKey",
+          "in": "header",
+          "name": "Authorization"
+        }
+      }
+    }
+  };
+};

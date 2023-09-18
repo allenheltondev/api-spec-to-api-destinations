@@ -1,10 +1,24 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: >
-  Call the Momento API directly from EventBridge events! Set and delete cache items or publish to a topic with a simple PutEvent call. 
-  Available in us-east-1, us-west-2, ap-south-1, ap-northeast-1, and eu-west-1 only!
+Transform: AWS::Serverless-2016-10-31
+Description: |
+  This file was generated from a file using a blueprint with the following details -
+  ```yaml
+  - name: Generate CloudFormation from OpenAPI spec
+    uses: allenheltondev/openapi-to-eventbridge-action@v1
+    with:
+      specPath: tests/lib/openapi.yaml
+      blueprint: tests/lib/blueprint.yaml
+      httpMethods: "PUT,DELETE,POST"
+      resourcePrefix: "MomentoApi"
+      outputFilename: "example.yaml"
+  ```
 Parameters:
   MomentoAuthToken:
     Type: String
+    NoEcho: true
+  EventBusName:
+    Type: String
+    Default: default
 Mappings:
   RegionToEndPoint:
     us-east-1:
@@ -47,10 +61,8 @@ Resources:
                   - Fn::GetAtt:
                       - MomentoApiTopicsPost
                       - Arn
-  
   FailedDeliveryDLQ:
     Type: AWS::SQS::Queue
-  
   ApiConnection:
     Type: AWS::Events::Connection
     Properties:
@@ -60,7 +72,6 @@ Resources:
           ApiKeyName: Authorization
           ApiKeyValue:
             Fn::Sub: ${MomentoAuthToken}
-  
   MomentoApiCachePut:
     Type: AWS::Events::ApiDestination
     Properties:
@@ -78,11 +89,11 @@ Resources:
                 - Ref: AWS::Region
                 - URL
       InvocationRateLimitPerSecond: 300
-  
   MomentoApiCachePutRule:
     Type: AWS::Events::Rule
     Properties:
-      EventBusName: default
+      EventBusName:
+        Ref: EventBusName
       EventPattern:
         detail-type:
           - cacheSet
@@ -107,13 +118,12 @@ Resources:
             QueryStringParameters:
               key: $.detail.key
               key_base64: $.detail.key_base64
-              ttl_seconds: $.detail.ttl
+              ttl_seconds: $.detail.ttl_seconds
           DeadLetterConfig:
             Arn:
               Fn::GetAtt:
                 - FailedDeliveryDLQ
                 - Arn
-
   MomentoApiCacheDelete:
     Type: AWS::Events::ApiDestination
     Properties:
@@ -131,11 +141,11 @@ Resources:
                 - Ref: AWS::Region
                 - URL
       InvocationRateLimitPerSecond: 300
-  
   MomentoApiCacheDeleteRule:
     Type: AWS::Events::Rule
     Properties:
-      EventBusName: default
+      EventBusName:
+        Ref: EventBusName
       EventPattern:
         detail-type:
           - cacheDelete
@@ -161,7 +171,6 @@ Resources:
               Fn::GetAtt:
                 - FailedDeliveryDLQ
                 - Arn
-  
   MomentoApiTopicsPost:
     Type: AWS::Events::ApiDestination
     Properties:
@@ -179,11 +188,11 @@ Resources:
                 - Ref: AWS::Region
                 - URL
       InvocationRateLimitPerSecond: 300
-  
   MomentoApiTopicsPostRule:
     Type: AWS::Events::Rule
     Properties:
-      EventBusName: default
+      EventBusName:
+        Ref: EventBusName
       EventPattern:
         detail-type:
           - topicPublish
@@ -211,7 +220,6 @@ Resources:
               Fn::GetAtt:
                 - FailedDeliveryDLQ
                 - Arn
-
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -219,6 +227,14 @@ Metadata:
           default: Authentication
         Parameters:
           - MomentoAuthToken
+      - Label:
+          default: Triggers
+        Parameters:
+          - EventBusName
     ParameterLabels:
       MomentoAuthToken:
-        default: Momento Auth Token from https://console.gomomento.com        
+        default: Momento auth token from https://console.gomomento.com
+      EventBusName:
+        default: >-
+          Name of event bus to use in EventBridge for triggering API calls
+          (optional)

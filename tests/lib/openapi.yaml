@@ -3,25 +3,25 @@ info:
     title: Momento HTTP API
     description: |
       ## Welcome!
-      
-      We're glad you're here. You probably want to get, set, and delete values from your Momento caches, right? Maybe you want to publish a message to a topic? Awesome, you're in the right place. 
-      
+
+      We're glad you're here. You probably want to get, set, and delete values from your Momento caches, right? Maybe you want to publish a message to a topic? Awesome, you're in the right place.
+
       ## Authentication
-      
+
       Before getting started, be sure to visit the [Momento Console](https://console.gomomento.com) to obtain an API token. For security reasons, we recommend using scoped tokens with a short expiration. Details in the console!
-      
+
       ## Selecting a server
-      
+
       When creating your API token, you were required to select a region. The region you selected determines the base url (aka server) you need to use when making a call to the API. See the **servers** section for a mapping of regions to endpoints.
-      
+
       ## Quick tips
-      
+
       You can call these endpoints any way you like: `cUrl`, Postman, JavaScript fetch, [AWS EventBridge API destination](https://docs.aws.amazon.com/eventbridge/latest/userguide/eb-api-destinations.html), you name it, you can do it. You can also call these in edge locations, like [Cloudflare Workers](https://workers.cloudflare.com/) or [Lambda@Edge](https://aws.amazon.com/lambda/edge/).
-      
+
       You can choose to provide your cache keys as plaintext or base64 encoded, but not both! Each endpoint accepts a `key` and a `key_base64` query string parameter. You must provide one, but not both of them.
-      
+
       Similarly, you can provide your auth token either in a `token` query string parameter or as an `Authorization` header. You are required to provide one, but not both of them.
-      
+
       If you get stuck, have questions, or would like to give us feedback, please [join us on Discord](https://discord.gg/3HkAKjUZGq). We'd love to hear from you!
     version: 1.0.0
 
@@ -35,7 +35,7 @@ servers:
     - description: AWS ap-northeast-1
       url: https://api.cache.cell-ap-northeast-1-1.prod.a.momentohq.com
     - description: AWS eu-west-1
-      url: https://api.cache.cell-1-eu-west-1-1.prod.a.momentohq.com    
+      url: https://api.cache.cell-1-eu-west-1-1.prod.a.momentohq.com
 
 security:
   - apiTokenQuery: []
@@ -206,7 +206,7 @@ components:
         type: string
         minLength: 1
         example: myfirstcache
-  
+
   responses:
     NoContent:
       description: The operation was successful and no information was returned
@@ -229,7 +229,7 @@ components:
                 enum:
                   - You must either set the 'authorization' header or the 'auth_token' query parameter, not both.
                   - You must specify either 'key' or 'key_base64', not both.
-            
+
     NotFound:
       description: The requested resource could not be found
       content:
@@ -237,7 +237,7 @@ components:
           schema:
             type: object
             properties:
-              status: 
+              status:
                 type: integer
                 description: Status code of the response
                 example: 404
@@ -250,7 +250,7 @@ components:
               description:
                 type: string
                 description: Detail of the error message
-                enum: 
+                enum:
                   - The specified key was not present in the cache.
                   - Cache not found
     Unauthorized:
@@ -263,7 +263,7 @@ components:
               status:
                 type: integer
                 example: 401
-              title: 
+              title:
                 type: string
                 enum:
                   - No Auth Token Provided
@@ -323,7 +323,7 @@ components:
                   - Internal Server Error
               description:
                 type: string
-    
+
   securitySchemes:
     apiTokenQuery:
       type: apiKey

@@ -1,0 +1,240 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: |
+  This file was generated from a file using a blueprint with the following details -
+  ```yaml
+  - name: Generate CloudFormation from OpenAPI spec
+    uses: allenheltondev/openapi-to-eventbridge-action@v1
+    with:
+      specPath: tests/lib/openapi.yaml
+      blueprint: tests/lib/blueprint.yaml
+      httpMethods: "PUT,DELETE,POST"
+      resourcePrefix: "MomentoApi"
+      outputFilename: "example.yaml"
+  ```
+Parameters:
+  MomentoAuthToken:
+    Type: String
+    NoEcho: true
+  EventBusName:
+    Type: String
+    Default: default
+Mappings:
+  RegionToEndPoint:
+    us-east-1:
+      URL: https://api.cache.cell-us-east-1-1.prod.a.momentohq.com
+    us-west-2:
+      URL: https://api.cache.cell-4-us-west-2-1.prod.a.momentohq.com
+    ap-south-1:
+      URL: https://api.cache.cell-1-ap-south-1-1.prod.a.momentohq.com
+    ap-northeast-1:
+      URL: https://api.cache.cell-ap-northeast-1-1.prod.a.momentohq.com
+    eu-west-1:
+      URL: https://api.cache.cell-1-eu-west-1-1.prod.a.momentohq.com
+Resources:
+  ApiDestinationsTargetRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /service-role/
+      Policies:
+        - PolicyName: destinationinvoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - events:InvokeApiDestination
+                Resource:
+                  - Fn::GetAtt:
+                      - MomentoApiCachePut
+                      - Arn
+                  - Fn::GetAtt:
+                      - MomentoApiCacheDelete
+                      - Arn
+                  - Fn::GetAtt:
+                      - MomentoApiTopicsPost
+                      - Arn
+  FailedDeliveryDLQ:
+    Type: AWS::SQS::Queue
+  ApiConnection:
+    Type: AWS::Events::Connection
+    Properties:
+      AuthorizationType: API_KEY
+      AuthParameters:
+        ApiKeyAuthParameters:
+          ApiKeyName: Authorization
+          ApiKeyValue:
+            Fn::Sub: ${MomentoAuthToken}
+  MomentoApiCachePut:
+    Type: AWS::Events::ApiDestination
+    Properties:
+      ConnectionArn:
+        Fn::GetAtt:
+          - ApiConnection
+          - Arn
+      HttpMethod: PUT
+      InvocationEndpoint:
+        Fn::Sub:
+          - ${RegionEndpoint}/cache/*
+          - RegionEndpoint:
+              Fn::FindInMap:
+                - RegionToEndPoint
+                - Ref: AWS::Region
+                - URL
+      InvocationRateLimitPerSecond: 300
+  MomentoApiCachePutRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventBusName:
+        Ref: EventBusName
+      EventPattern:
+        detail-type:
+          - cacheSet
+      State: ENABLED
+      Targets:
+        - Id: cacheSet-rule
+          Arn:
+            Fn::GetAtt:
+              - MomentoApiCachePut
+              - Arn
+          RoleArn:
+            Fn::GetAtt:
+              - ApiDestinationsTargetRole
+              - Arn
+          InputTransformer:
+            InputPathsMap:
+              message: $.detail.message
+            InputTemplate: '"<message>"'
+          HttpParameters:
+            PathParameterValues:
+              - $.detail.cacheName
+            QueryStringParameters:
+              key: $.detail.key
+              key_base64: $.detail.key_base64
+              ttl_seconds: $.detail.ttl_seconds
+          DeadLetterConfig:
+            Arn:
+              Fn::GetAtt:
+                - FailedDeliveryDLQ
+                - Arn
+  MomentoApiCacheDelete:
+    Type: AWS::Events::ApiDestination
+    Properties:
+      ConnectionArn:
+        Fn::GetAtt:
+          - ApiConnection
+          - Arn
+      HttpMethod: DELETE
+      InvocationEndpoint:
+        Fn::Sub:
+          - ${RegionEndpoint}/cache/*
+          - RegionEndpoint:
+              Fn::FindInMap:
+                - RegionToEndPoint
+                - Ref: AWS::Region
+                - URL
+      InvocationRateLimitPerSecond: 300
+  MomentoApiCacheDeleteRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventBusName:
+        Ref: EventBusName
+      EventPattern:
+        detail-type:
+          - cacheDelete
+      State: ENABLED
+      Targets:
+        - Id: cacheDelete-rule
+          Arn:
+            Fn::GetAtt:
+              - MomentoApiCacheDelete
+              - Arn
+          RoleArn:
+            Fn::GetAtt:
+              - ApiDestinationsTargetRole
+              - Arn
+          HttpParameters:
+            PathParameterValues:
+              - $.detail.cacheName
+            QueryStringParameters:
+              key: $.detail.key
+              key_base64: $.detail.key_base64
+          DeadLetterConfig:
+            Arn:
+              Fn::GetAtt:
+                - FailedDeliveryDLQ
+                - Arn
+  MomentoApiTopicsPost:
+    Type: AWS::Events::ApiDestination
+    Properties:
+      ConnectionArn:
+        Fn::GetAtt:
+          - ApiConnection
+          - Arn
+      HttpMethod: POST
+      InvocationEndpoint:
+        Fn::Sub:
+          - ${RegionEndpoint}/topics/*/*
+          - RegionEndpoint:
+              Fn::FindInMap:
+                - RegionToEndPoint
+                - Ref: AWS::Region
+                - URL
+      InvocationRateLimitPerSecond: 300
+  MomentoApiTopicsPostRule:
+    Type: AWS::Events::Rule
+    Properties:
+      EventBusName:
+        Ref: EventBusName
+      EventPattern:
+        detail-type:
+          - topicPublish
+      State: ENABLED
+      Targets:
+        - Id: topicPublish-rule
+          Arn:
+            Fn::GetAtt:
+              - MomentoApiTopicsPost
+              - Arn
+          RoleArn:
+            Fn::GetAtt:
+              - ApiDestinationsTargetRole
+              - Arn
+          InputTransformer:
+            InputPathsMap:
+              message: $.detail.message
+            InputTemplate: '"<message>"'
+          HttpParameters:
+            PathParameterValues:
+              - $.detail.cacheName
+              - $.detail.topicName
+          DeadLetterConfig:
+            Arn:
+              Fn::GetAtt:
+                - FailedDeliveryDLQ
+                - Arn
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Authentication
+        Parameters:
+          - MomentoAuthToken
+      - Label:
+          default: Triggers
+        Parameters:
+          - EventBusName
+    ParameterLabels:
+      MomentoAuthToken:
+        default: Momento auth token from https://console.gomomento.com
+      EventBusName:
+        default: >-
+          Name of event bus to use in EventBridge for triggering API calls
+          (optional)

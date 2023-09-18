@@ -21,7 +21,7 @@ describe('buildTemplateFromSpec', () => {
     expect(result.Resources).not.toHaveProperty('TESTCacheGetRule');
     expect(result.Resources).not.toHaveProperty('TESTTopicsPost');
     expect(result.Resources).not.toHaveProperty('TESTTopicsPostRule');
-    
+
     const role = result.Resources.ApiDestinationsTargetRole;
     expect(role.Properties.Policies[0].PolicyDocument.Statement[0].Resource.length).toEqual(1);
     expect(role.Properties.Policies[0].PolicyDocument.Statement[0].Resource[0]['Fn::GetAtt'][0]).toEqual('TESTCacheDelete');
@@ -45,7 +45,7 @@ describe('buildTemplateFromSpec', () => {
     expect(role.Properties.Policies[0].PolicyDocument.Statement[0].Resource[1]['Fn::GetAtt'][0]).toEqual('TEST2TopicsPost');
   });
 
-  it('should not create resources if operationId is missing', () => {   
+  it('should not create resources if operationId is missing', () => {
 
     const supportedMethods = new Set(['POST', 'PUT']);
     delete spec.paths['/topics/{cacheName}/{topicName}'].post.operationId;
@@ -84,7 +84,7 @@ describe('buildTemplateFromSpec', () => {
     expect(target.HttpParameters).toHaveProperty('PathParameterValues');
     expect(target.HttpParameters.PathParameterValues).toHaveLength(1);
     expect(target.HttpParameters.PathParameterValues[0]).toEqual('$.detail.cacheName');
-    
+
   });
 });
 

@@ -6849,7 +6849,8 @@ function getResourceName(prefix, path, httpMethod){
 module.exports = {
   replaceBracketsWithAsterisk,
   getResourceName
-};
+}
+
 
 /***/ }),
 
@@ -6896,7 +6897,8 @@ function getDefinedQueryParams(definition, queryParams) {
 module.exports = {
   loadQueryParams,
   getDefinedQueryParams
-};
+}
+
 
 /***/ }),
 
@@ -7126,7 +7128,8 @@ function buildResources(resourceName, path, friendlyPath, httpMethod, definition
 
 module.exports = {
   buildTemplateFromSpec
-};
+}
+
 
 /***/ }),
 
@@ -7277,15 +7280,16 @@ const supportedMethods = new Set(process.env.INPUT_HTTPMETHODS.split(',').map(me
 try {
   const doc = yaml.load(fs.readFileSync(specPath, 'utf8'));
   const template = buildTemplateFromSpec(doc, supportedMethods, resourcePrefix, blueprint);
-  
+
   fs.writeFileSync(outputFilename, yaml.dump(template));
-  
+
   core.info('Successfully transformed API spec');
   core.setOutput('template-path', outputFilename);
 } catch (e) {
   console.error(e);
   core.setFailed('Something went wrong processing your API spec');
 }
+
 })();
 
 module.exports = __webpack_exports__;

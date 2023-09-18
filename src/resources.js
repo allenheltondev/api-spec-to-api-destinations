@@ -221,4 +221,4 @@ function buildResources(resourceName, path, friendlyPath, httpMethod, definition
 
 module.exports = {
   buildTemplateFromSpec
-};
+}

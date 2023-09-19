@@ -14,4 +14,4 @@ function getResourceName(prefix, path, httpMethod){
 module.exports = {
   replaceBracketsWithAsterisk,
   getResourceName
-};
+}

@@ -38,4 +38,4 @@ function getDefinedQueryParams(definition, queryParams) {
 module.exports = {
   loadQueryParams,
   getDefinedQueryParams
-};
+}

@@ -1,10 +1,16 @@
 const fs = require('fs');
 const core = require('@actions/core');
+const yaml = require('js-yaml');
 const { replaceBracketsWithAsterisk, getResourceName } = require('./formatters');
 const {loadQueryParams, getDefinedQueryParams} = require('./parameters');
 
-function buildTemplateFromSpec(apiSpec, supportedMethods, resourcePrefix, blueprint) {
+function buildTemplateFromSpec(apiSpec, supportedMethods, resourcePrefix, blueprint, environment) {
   const queryParams = loadQueryParams(apiSpec);
+  const baseUrl = getBaseUrl(apiSpec, environment);
+  if(!baseUrl){
+    return;
+  }
+
   const apiDestinations = [];
   let resources = getStaticResources();
   for (const [key, value] of Object.entries(apiSpec.paths)) {
@@ -26,7 +32,7 @@ function buildTemplateFromSpec(apiSpec, supportedMethods, resourcePrefix, bluepr
           ...pathQueryParams,
           ...getDefinedQueryParams(endpointDefinition, queryParams)
         };
-        const endpointResources = buildResources(resourceName, key, path, httpMethod, endpointDefinition, allQueryParams);
+        const endpointResources = buildResources(resourceName, key, path, httpMethod, endpointDefinition, allQueryParams, baseUrl);
 
         resources = { ...resources, ...endpointResources };
       }
@@ -144,7 +150,7 @@ function extractParams(path) {
   return params;
 }
 
-function buildResources(resourceName, path, friendlyPath, httpMethod, definition, queryParams) {
+function buildResources(resourceName, path, friendlyPath, httpMethod, definition, queryParams, baseUrl) {
   const params = extractParams(path);
   const inputTransformer = buildInputTransformer(definition);
   const resources = {
@@ -155,20 +161,7 @@ function buildResources(resourceName, path, friendlyPath, httpMethod, definition
           "Fn::GetAtt": ["ApiConnection", "Arn"]
         },
         HttpMethod: httpMethod.toUpperCase(),
-        InvocationEndpoint: {
-          "Fn::Sub": [
-            `\${RegionEndpoint}${friendlyPath}`,
-            {
-              RegionEndpoint: {
-                "Fn::FindInMap": [
-                  "RegionToEndPoint",
-                  { "Ref": "AWS::Region" },
-                  "URL"
-                ]
-              }
-            }
-          ]
-        },
+        InvocationEndpoint: `${baseUrl}${friendlyPath}`,
         InvocationRateLimitPerSecond: 300
       }
     },
@@ -218,6 +211,29 @@ function buildResources(resourceName, path, friendlyPath, httpMethod, definition
   return resources;
 }
 
+function getBaseUrl (spec, environment) {
+  let server;
+  if(environment){
+    server = spec.servers?.find(s => s.description?.toLowerCase() == environment?.toLowerCase());
+    if(!server?.url){
+      core.error(`An environment with the name '${environment}' does not exist in the servers object of your API spec`);
+      core.setFailed('Could not find environment');
+      return;
+    } else {
+      return server.url.endsWith('/') ? server.url.slice(0, -1) : server.url;
+    }
+  }
+
+  server = spec.servers?.find(s => s.url);
+  if(!server?.url){
+    core.error(`Your API spec does not contain any valid servers. Please add one or more or provide the environment name`);
+    core.setFailed('Could not find environment');
+    return;
+  } else {
+    return server.url.endsWith('/') ? server.url.slice(0, -1) : server.url;
+  }
+}
+
 module.exports = {
   buildTemplateFromSpec
-};
+}

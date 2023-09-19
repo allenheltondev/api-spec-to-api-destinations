@@ -7297,6 +7297,7 @@ try {
   const doc = yaml.load(fs.readFileSync(specPath, 'utf8'));
   const template = buildTemplateFromSpec(doc, supportedMethods, resourcePrefix, blueprint, environment);
 
+  core.info(`Writing output file to ${outputFilename}`);
   fs.writeFileSync(outputFilename, yaml.dump(template));
 
   core.info('Successfully transformed API spec');

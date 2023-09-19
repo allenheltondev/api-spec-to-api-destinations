@@ -5,8 +5,9 @@ const { buildTemplateFromSpec} = require('./resources');
 
 const specPath = process.env.INPUT_SPECPATH;
 const blueprint = process.env.INPUT_BLUEPRINT;
-const resourcePrefix = process.env.RESOURCEPREFIX ?? '';
-const outputFilename = process.env.OUTPUTFILENAME ?? 'template.yaml';
+const resourcePrefix = process.env.INPUT_RESOURCEPREFIX ? process.env.INPUT_RESOURCEPREFIX : '';
+const outputFilename = process.env.INPUT_OUTPUTFILENAME ? process.env.INPUT_OUTPUTFILENAME : 'template.yaml';
+const environment = process.env.INPUT_ENVIRONMENT;
 
 if (!process.env.INPUT_HTTPMETHODS) {
   process.env.INPUT_HTTPMETHODS = 'PUT,POST,PATCH,DELETE';
@@ -15,8 +16,9 @@ const supportedMethods = new Set(process.env.INPUT_HTTPMETHODS.split(',').map(me
 
 try {
   const doc = yaml.load(fs.readFileSync(specPath, 'utf8'));
-  const template = buildTemplateFromSpec(doc, supportedMethods, resourcePrefix, blueprint);
+  const template = buildTemplateFromSpec(doc, supportedMethods, resourcePrefix, blueprint, environment);
 
+  core.info(`Writing output file to ${outputFilename}`);
   fs.writeFileSync(outputFilename, yaml.dump(template));
 
   core.info('Successfully transformed API spec');

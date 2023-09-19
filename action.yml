@@ -13,6 +13,9 @@ inputs:
   blueprint:
     description: Path to template file you'd like to use as a basis. Useful if you have Auth params to provide
     required: false
+  environment:
+    description: Name of the environment/server to use. Defaults to the first one in the OpenAPI spec if not provided.
+    required: false
   httpMethods:
     description: Comma separated list of HTTP methods to convert to API Destinations
     required: false
@@ -20,5 +23,5 @@ inputs:
     description: Prefix to use for all generated resources
     required: false
   outputFilename:
-    description: Output filename 
+    description: Output filename
     required: false

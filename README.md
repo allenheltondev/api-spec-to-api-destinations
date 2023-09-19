@@ -40,6 +40,7 @@ If you'd like to add the resources to an existing CloudFormation or SAM template
   with:
     specPath: path/to/openapi/spec.yaml
     blueprint: path/to/template.yaml
+    environment: prod
     httpMethods: POST,DELETE,PUT
     resourcePrefix: MYAPP
     outputFilename: template.yaml
@@ -51,9 +52,10 @@ If you'd like to add the resources to an existing CloudFormation or SAM template
 |-----------------|------------------------------------------------------------------------------------------------------------------|----------|
 | `specPath`      | Path to the OpenAPI spec.                                                                                        | ✅       |
 | `blueprint`     | Path to template file you'd like to use as a basis. Useful if you have authentication parameters to provide.     | ❌       |
-| `httpMethods`   | Comma-separated list of HTTP methods to convert to API Destinations (e.g. "GET,POST,PUT,DELETE").                        | ❌       |
+| `environment`   | Value in the *Description* field of a server in your OpenAPI spec. Used to get the base path for the API destinations. Defaults to the first server if none is provided. |❌|
+| `httpMethods`   | Comma-separated list of HTTP methods to convert to API Destinations (e.g. "GET,POST,PUT,DELETE").                | ❌       |
 | `resourcePrefix`| Prefix to use for all generated resources.                                                                       | ❌       |
-| `outputFilename`| The filename for the generated output. If not provided, a default name will be used.                              | ❌       |
+| `outputFilename`| The filename for the generated output. If not provided, a default name will be used.                             | ❌       |
 
 ## Outputs
 
@@ -83,6 +85,7 @@ jobs:
       uses: allenheltondev/openapi-to-eventbridge-action@v1
       with:
         specPath: openapi/spec.yml
+        environment: stage
         httpMethods: "GET,POST"
         resourcePrefix: "myApp_"
         outputFilename: "template.yaml"

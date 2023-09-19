@@ -28,7 +28,7 @@ describe('buildTemplateFromSpec', () => {
   });
 
   it('Create Get and Post destinations', () => {
-    const supportedMethods = new Set(['GET','POST']);
+    const supportedMethods = new Set(['GET', 'POST']);
     const result = buildTemplateFromSpec(spec, supportedMethods, 'TEST2');
     expect(result.Resources).not.toHaveProperty('TEST2CacheDelete');
     expect(result.Resources).not.toHaveProperty('TEST2CacheDeleteRule');
@@ -84,7 +84,40 @@ describe('buildTemplateFromSpec', () => {
     expect(target.HttpParameters).toHaveProperty('PathParameterValues');
     expect(target.HttpParameters.PathParameterValues).toHaveLength(1);
     expect(target.HttpParameters.PathParameterValues[0]).toEqual('$.detail.cacheName');
+  });
 
+  it('returns nothing if invalid server/environment is provided', () => {
+    const supportedMethods = new Set(['PUT']);
+
+    const result = buildTemplateFromSpec(spec, supportedMethods, 'QUERY', undefined, 'dev');
+    expect(result).toBeUndefined();
+  });
+
+  it('returns nothing if no servers are provided in spec', () => {
+    const supportedMethods = new Set(['PUT']);
+    delete spec.servers;
+    const result = buildTemplateFromSpec(spec, supportedMethods, 'QUERY', undefined, 'prod');
+    expect(result).toBeUndefined();
+  });
+
+  it('uses first server if none is explicitly provided', () => {
+    const supportedMethods = new Set(['PUT']);
+
+    const result = buildTemplateFromSpec(spec, supportedMethods, 'QUERY', undefined);
+    expect(result.Resources).toHaveProperty('QUERYCachePut');
+    expect(result.Resources).toHaveProperty('QUERYCachePutRule');
+    expect(result.Resources.QUERYCachePut).toHaveProperty('Properties');
+    expect(result.Resources.QUERYCachePut.Properties).toHaveProperty('InvocationEndpoint', 'https://google.com/cache/*');
+  });
+
+  it('uses first VALID server if none is explicitly provided', () => {
+    const supportedMethods = new Set(['PUT']);
+    spec.servers.unshift({ description: 'dev' });
+    const result = buildTemplateFromSpec(spec, supportedMethods, 'QUERY', undefined);
+    expect(result.Resources).toHaveProperty('QUERYCachePut');
+    expect(result.Resources).toHaveProperty('QUERYCachePutRule');
+    expect(result.Resources.QUERYCachePut).toHaveProperty('Properties');
+    expect(result.Resources.QUERYCachePut.Properties).toHaveProperty('InvocationEndpoint', 'https://google.com/cache/*');
   });
 });
 
@@ -102,6 +135,10 @@ const getExampleSpec = () => {
         "apiTokenHeader": []
       }
     ],
+    "servers": [{
+      "description": "prod",
+      "url": "https://google.com"
+    }],
     "paths": {
       "/cache/{cacheName}": {
         "parameters": [

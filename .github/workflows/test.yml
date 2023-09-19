@@ -22,5 +22,6 @@ jobs:
     - uses: ./
       with:
         specPath: tests/lib/openapi.yaml
+        environment: AWS us-east-1
         blueprint: tests/lib/blueprint.yaml
         httpMethods: PUT, POST, DELETE

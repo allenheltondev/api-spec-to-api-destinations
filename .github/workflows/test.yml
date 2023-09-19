@@ -25,3 +25,4 @@ jobs:
         environment: AWS us-east-1
         blueprint: tests/lib/blueprint.yaml
         httpMethods: PUT, POST, DELETE
+        resourcePrefix: TEST

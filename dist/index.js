@@ -7284,8 +7284,8 @@ const { buildTemplateFromSpec} = __nccwpck_require__(2398);
 
 const specPath = process.env.INPUT_SPECPATH;
 const blueprint = process.env.INPUT_BLUEPRINT;
-const resourcePrefix = process.env.INPUT_RESOURCEPREFIX ?? '';
-const outputFilename = process.env.INPUT_OUTPUTFILENAME ?? 'template.yaml';
+const resourcePrefix = process.env.INPUT_RESOURCEPREFIX ? process.env.INPUT_RESOURCEPREFIX : '';
+const outputFilename = process.env.INPUT_OUTPUTFILENAME ? process.env.INPUT_OUTPUTFILENAME : 'template.yaml';
 const environment = process.env.INPUT_ENVIRONMENT;
 
 if (!process.env.INPUT_HTTPMETHODS) {
